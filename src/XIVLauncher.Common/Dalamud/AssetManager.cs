@@ -71,6 +71,15 @@ namespace XIVLauncher.Common.Dalamud
                 var filePath = Path.Combine(assetsDir.FullName, entry.FileName);
                 var filePathDev = Path.Combine(devDir.FullName, entry.FileName);
 
+                if (entry.FileName.Contains("bannedplugins.json"))
+                {
+                    if (!File.Exists(filePath))
+                    {
+                        File.WriteAllText(filePath, "[]");
+                    }
+                    continue;
+                }
+
                 Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
 
                 try

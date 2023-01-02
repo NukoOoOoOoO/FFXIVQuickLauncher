@@ -157,6 +157,7 @@ namespace XIVLauncher
             client.DefaultRequestHeaders.AddWithoutValidation("X-XL-FirstStart", App.Settings.VersionUpgradeLevel == 0 ? "yes" : "no");
             client.DefaultRequestHeaders.AddWithoutValidation("X-XL-HaveWine", EnvironmentSettings.IsWine ? "yes" : "no");
 
+
             var response = await client.GetAsync(LEASE_META_URL).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
@@ -291,7 +292,9 @@ namespace XIVLauncher
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "Update failed");
+                OnUpdateCheckFinished?.Invoke(true);
+
+                /*Log.Error(ex, "Update failed");
                 var newsData = await GetErrorNews().ConfigureAwait(false);
 
                 if (newsData != null && !string.IsNullOrEmpty(newsData.Message))
@@ -309,7 +312,7 @@ namespace XIVLauncher
                         MessageBoxImage.Error, showOfficialLauncher: true);
                 }
 
-                Environment.Exit(1);
+                Environment.Exit(1);*/
             }
 
             // Reset security protocol after updating
