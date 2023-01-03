@@ -71,7 +71,7 @@ namespace XIVLauncher.Common.Dalamud
                 var filePath = Path.Combine(assetsDir.FullName, entry.FileName);
                 var filePathDev = Path.Combine(devDir.FullName, entry.FileName);
                 
-                if (entry.FileName.StartsWith("bannedplugin"))
+                if (entry.FileName.Contains("bannedplugin"))
                 {
                     if (!File.Exists(filePath))
                     {
