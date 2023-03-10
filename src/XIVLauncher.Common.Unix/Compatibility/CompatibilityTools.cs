@@ -32,8 +32,8 @@ public class CompatibilityTools
     private const string WINE_XIV_RELEASE_URL = "https://s3.ffxiv.wang/xlcore/deps/wine/fedora/wine-xiv-staging-fsync-git-fedora-7.10.r3.g560db77d.tar.xz";
     private const string WINE_XIV_RELEASE_NAME = "wine-xiv-staging-fsync-git-7.10.r3.g560db77d";
 #elif WINE_XIV_MACOS
-    // private const string WINE_XIV_RELEASE_URL = "https://github.com/marzent/winecx/releases/download/ff-wine-1.1/wine.tar.xz";
-    private const string WINE_XIV_RELEASE_URL = "https://s3.ffxiv.wang/xlcore/deps/wine/osx/wine.tar.xz";
+    // private const string WINE_XIV_RELEASE_URL = "https://github.com/marzent/winecx/releases/download/ff-wine-2.0/wine.tar.xz";
+    private const string WINE_XIV_RELEASE_URL = "https://s3.ffxiv.wang/xlcore/deps/wine/osx/ff-wine-2.0/wine.tar.xz";
     private const string WINE_XIV_RELEASE_NAME = "wine";
 #else
     // private const string WINE_XIV_RELEASE_URL = "https://github.com/goatcorp/wine-xiv-git/releases/download/7.10.r3.g560db77d/wine-xiv-staging-fsync-git-ubuntu-7.10.r3.g560db77d.tar.xz";
@@ -41,13 +41,21 @@ public class CompatibilityTools
     private const string WINE_XIV_RELEASE_NAME = "wine-xiv-staging-fsync-git-7.10.r3.g560db77d";
 #endif
 
+    private const string SD_WINE_XIV_RELEASE_URL = "https://s3.ffxiv.wang/xlcore/deps/wine/ubuntu/wine-xiv-staging-fsync-git-ubuntu-8.1.r2.g86a67397.tar.xz";
+    private const string SD_WINE_XIV_RELEASE_NAME = "wine-xiv-staging-fsync-git-8.1.r2.g86a67397";
+
     public bool IsToolReady { get; private set; }
 
     public WineSettings Settings { get; private set; }
+    public static bool IsSteamDeckHardware => Directory.Exists("/home/deck");
 
     private string WineBinPath => Settings.StartupType == WineStartupType.Managed
-        ? Path.Combine(toolDirectory.FullName, WINE_XIV_RELEASE_NAME, "bin")
+        ? Path.Combine(toolDirectory.FullName, IsSteamDeckHardware ? SD_WINE_XIV_RELEASE_NAME : WINE_XIV_RELEASE_NAME, "bin")
         : Settings.CustomBinPath;
+    
+    private string WineLibPath => Settings.StartupType == WineStartupType.Managed
+        ? Path.Combine(toolDirectory.FullName, WINE_XIV_RELEASE_NAME, "lib")
+        : Path.Combine(Settings.CustomBinPath, "..", "lib");
 
     private string MoltenVkPath => Path.Combine(Paths.ResourcesPath, "MoltenVK");
     private string Wine64Path => Path.Combine(WineBinPath, "wine64");
@@ -60,7 +68,7 @@ public class CompatibilityTools
     private readonly string dxvkAsyncOn;
     private readonly int dxvkFrameLimit;
 
-    public CompatibilityTools(WineSettings wineSettings, Dxvk.DxvkHudType hudType, bool? gamemodeOn, bool? dxvkAsyncOn,int dxvkFrameLimit, DirectoryInfo toolsFolder)
+    public CompatibilityTools(WineSettings wineSettings, Dxvk.DxvkHudType hudType, bool? gamemodeOn, bool? dxvkAsyncOn, int dxvkFrameLimit, DirectoryInfo toolsFolder)
     {
         this.Settings = wineSettings;
         this.hudType = hudType;
@@ -105,9 +113,19 @@ public class CompatibilityTools
         using var client = new HttpClient();
         var tempFilePath = Path.Combine(tempPath.FullName, $"{Guid.NewGuid()}");
 
-        await File.WriteAllBytesAsync(tempFilePath, await client.GetByteArrayAsync(WINE_XIV_RELEASE_URL).ConfigureAwait(false)).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(tempFilePath, await client.GetByteArrayAsync(IsSteamDeckHardware ? SD_WINE_XIV_RELEASE_URL : WINE_XIV_RELEASE_URL).ConfigureAwait(false)).ConfigureAwait(false);
 
         PlatformHelpers.Untar(tempFilePath, this.toolDirectory.FullName);
+
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+        {
+            var bundledMvkLibPath = Path.Combine(WineLibPath, "libMoltenVK.dylib");
+
+            if (File.Exists(bundledMvkLibPath))
+            {
+                File.Delete(bundledMvkLibPath);
+            }
+        }
 
         Log.Information("Compatibility tool successfully extracted to {Path}", this.toolDirectory.FullName);
 
@@ -172,19 +190,17 @@ public class CompatibilityTools
 
         if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            bool moltenVkEnabled = false;
+            psi.EnvironmentVariables.Add("LANG", "en_US"); // need this for Dalamud on non-latin locale
             var additionalPaths = Array.Empty<string>();
-            var winelibPath = Path.Combine(WineBinPath, "..", "lib");
 
             if (Directory.Exists(MoltenVkPath))
             {
-                moltenVkEnabled = true;
                 additionalPaths = additionalPaths.Append(MoltenVkPath).ToArray();
             }
 
-            if (Directory.Exists(winelibPath))
+            if (Directory.Exists(WineLibPath))
             {
-                additionalPaths = additionalPaths.Append(winelibPath).ToArray();
+                additionalPaths = additionalPaths.Append(WineLibPath).ToArray();
             }
 
             var libPaths = additionalPaths.Concat(new[] { "/opt/local/lib", "/usr/local/lib", "/usr/lib", "/usr/libexec", "/usr/lib/system", "/opt/X11/lib" });
@@ -192,13 +208,10 @@ public class CompatibilityTools
             psi.EnvironmentVariables.Add("DYLD_FALLBACK_LIBRARY_PATH", libPath);
             psi.EnvironmentVariables.Add("DYLD_VERSIONED_LIBRARY_PATH", libPath);
 
-            if (moltenVkEnabled)
-            {
-                psi.EnvironmentVariables.Add("MVK_CONFIG_FULL_IMAGE_VIEW_SWIZZLE", "1");
-                psi.EnvironmentVariables.Add("MVK_CONFIG_RESUME_LOST_DEVICE", "1");
-                psi.EnvironmentVariables.Add("MVK_ALLOW_METAL_FENCES", "1");
-                psi.EnvironmentVariables.Add("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "1");
-            }
+            psi.EnvironmentVariables.Add("MVK_CONFIG_FULL_IMAGE_VIEW_SWIZZLE", "1");
+            psi.EnvironmentVariables.Add("MVK_CONFIG_RESUME_LOST_DEVICE", "1");
+            psi.EnvironmentVariables.Add("MVK_ALLOW_METAL_FENCES", "1");
+            psi.EnvironmentVariables.Add("MVK_CONFIG_USE_METAL_ARGUMENT_BUFFERS", "1");
         }
 
         var wineEnviromentVariables = new Dictionary<string, string>();
@@ -208,6 +221,17 @@ public class CompatibilityTools
         if (!string.IsNullOrEmpty(Settings.DebugVars))
         {
             wineEnviromentVariables.Add("WINEDEBUG", Settings.DebugVars);
+        }
+
+        if (!string.IsNullOrEmpty(Settings.Env))
+        {
+            var envList = Settings.Env.Split(';');
+
+            foreach (var env in envList)
+            {
+                var kvList = env.Split('=');
+                wineEnviromentVariables.Add(kvList[0], kvList[1]);
+            }
         }
 
         wineEnviromentVariables.Add("XL_WINEONLINUX", "true");

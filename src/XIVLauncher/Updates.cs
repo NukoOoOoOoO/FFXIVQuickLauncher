@@ -147,7 +147,7 @@ namespace XIVLauncher
             {
                 DefaultRequestHeaders =
                 {
-                    UserAgent = { new ProductInfoHeaderValue("XIVLauncher", AppUtil.GetGitHash()) }
+                    UserAgent = { new ProductInfoHeaderValue("XIVLauncherCN", AppUtil.GetGitHash()) }
                 }
             };
             client.DefaultRequestHeaders.AddWithoutValidation("X-XL-Track", prerelease ? TRACK_PRERELEASE : TRACK_RELEASE);
@@ -173,7 +173,7 @@ namespace XIVLauncher
                 throw new LeaseAcquisitionException(leaseData.Message!);
 
             var fakeDownloader = new FakeSquirrelFileDownloader(leaseData, prerelease);
-            var manager = new UpdateManager(FAKE_URL_PREFIX, "XIVLauncher", null, fakeDownloader);
+            var manager = new UpdateManager(FAKE_URL_PREFIX, "XIVLauncherCN", null, fakeDownloader);
 
             return new UpdateResult(manager, leaseData);
         }
