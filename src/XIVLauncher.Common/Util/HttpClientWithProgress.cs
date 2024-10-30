@@ -27,9 +27,9 @@ public class HttpClientDownloadWithProgress : IDisposable
     {
         timeout ??= TimeSpan.FromDays(1);
         ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
-        this.httpClient = new HttpClient { Timeout = timeout.Value };
+        this.httpClient = new HttpClient(new HttpClientHandler() { AutomaticDecompression = DecompressionMethods.GZip }) { Timeout = timeout.Value };
         this.httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 Edg/130.0.0.0");
-        //this.httpClient.DefaultRequestHeaders.Add("accept-encoding", "gzip, deflate, br");
+        this.httpClient.DefaultRequestHeaders.Add("accept-encoding", "gzip, deflate, br");
         using var response = await this.httpClient.GetAsync(this.downloadUrl, HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
         await this.DownloadFileFromHttpResponseMessage(response).ConfigureAwait(false);
     }
