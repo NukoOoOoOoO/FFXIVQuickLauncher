@@ -163,7 +163,7 @@ namespace XIVLauncher.Common.Dalamud
                         Log.Information("[DASSET] Downloading {0} to {1}...", entry.Url, entry.FileName);
                         await updater.DownloadFile(entry.Url, newFilePath, TimeSpan.FromMinutes(4));
                         isRefreshNeeded = true;
-                        continue;
+                        break;
                     }
                     catch (Exception ex)
                     {
