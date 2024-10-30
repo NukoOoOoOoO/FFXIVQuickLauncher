@@ -241,9 +241,9 @@ namespace XIVLauncher.Windows
                         Thread.Sleep(1000);
 
                         if (!App.Settings.EnableInjector) continue;
-                        if (App.DalamudUpdater is null) continue;
+                        if (App.DalamudUpdater?.Runner is null) continue;
 
-                        if (App.DalamudUpdater.State != DalamudUpdater.DownloadState.Done)
+                        if (App.DalamudUpdater.State is not DalamudUpdater.DownloadState.Done)
                         {
                             App.DalamudUpdater.ShowOverlay();
                             continue;
@@ -274,7 +274,7 @@ namespace XIVLauncher.Windows
                                     if (first)
                                     {
                                         first = false;
-                                        var result = CustomMessageBox.Show("检测到已经存在游戏进程,即将自动注入,是否要注入?", "自动注入", MessageBoxButton.YesNo);
+                                        var result = CustomMessageBox.Show($"检测到已经存在游戏进程{pid},即将自动注入,是否要注入?", "自动注入", MessageBoxButton.YesNo);
                                         if (result == MessageBoxResult.No) continue;
                                     }
 
@@ -468,7 +468,6 @@ namespace XIVLauncher.Windows
             });
 
             this.Dispatcher.InvokeAsync(this.SetupInjector);
-            EnableInjectorCheckBox_OnClick(null, null);
 
             Log.Information("MainWindow initialized.");
 
@@ -630,8 +629,8 @@ namespace XIVLauncher.Windows
 
         private void QuitMaintenanceQueueButton_OnClick(object sender, RoutedEventArgs e)
         {
-            _maintenanceQueueTimer.Stop();
-            Model.IsLoadingDialogOpen = false;
+            //_maintenanceQueueTimer.Stop();
+            Model.EnableInjector = false;
         }
 
         private void Card_KeyDown(object sender, KeyEventArgs e)
@@ -807,16 +806,12 @@ namespace XIVLauncher.Windows
             }
         }
 
-        private void EnableInjectorCheckBox_OnClick(object sender, RoutedEventArgs e)
+        private void EnableInjector_OnClick(object sender, RoutedEventArgs e)
         {
-            this.ServerSelection.IsEnabled = !this.Model.EnableInjector;
-            this.LoginUsername.IsEnabled = !this.Model.EnableInjector;
-            this.LoginPassword.IsEnabled = !this.Model.EnableInjector;
-            this.FastLoginCheckBox.IsEnabled = !this.Model.EnableInjector;
-            this.LoginButton.IsEnabled = !this.Model.EnableInjector;
-            this.LaunchOptions.IsEnabled = !this.Model.EnableInjector;
-            if (!this.Model.EnableInjector && App.DalamudUpdater is not null) App.DalamudUpdater.CloseOverlay();
-            App.Settings.EnableInjector = this.Model.EnableInjector;
+            Model.EnableInjector = true;
+            if (App.DalamudUpdater is not null) App.DalamudUpdater.ShowOverlay();
+            Model.LoadingDialogCancelButtonVisibility = Visibility.Visible;
+            Model.LoadingDialogMessage = "正在使用自动注入模式";
         }
     }
 }

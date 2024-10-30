@@ -151,15 +151,14 @@
                                 Margin="0 0 -10 -10">
                                 <Button
                                     x:Name="QueueButton"
-                                    IsEnabled="False"
                                     Style="{DynamicResource MaterialDesignFlatButton}" HorizontalAlignment="Left"
                                     Focusable="False"
-                                    ToolTip="{Binding MaintenanceQueue}"
+                                    ToolTip="切换到自动注入模式(仅建议WeGame用户使用)"
                                     Margin="0" Height="77" Width="77"
-                                    Click="QueueButton_OnClick">
+                                    Click="EnableInjector_OnClick" Cursor="Hand">
                                     <StackPanel Orientation="Vertical"
                                                 HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-                                        <materialDesign:PackIcon Kind="Update"
+                                        <materialDesign:PackIcon Kind="Injection"
                                                                  Height="Auto" Width="Auto" />
                                     </StackPanel>
                                 </Button>
@@ -297,17 +296,6 @@
                                                 Click="FastLoginCheckBox_OnClick"
                                                 ToolTip="缓存登录信息,类PC叨鱼快速登录"
                                                 IsChecked="{Binding IsFastLogin}" />
-                                            <CheckBox
-                                                Visibility="Visible"
-                                                DockPanel.Dock="Top"
-                                                Content="切换到自动注入模式"
-                                                HorizontalAlignment="Left"
-                                                Margin="0,5,0,0"
-                                                VerticalAlignment="Top"
-                                                x:Name="EnableInjectorCheckBox"
-                                                Click="EnableInjectorCheckBox_OnClick"
-                                                ToolTip="启用自动注入模式(仅建议WeGame用户使用)"
-                                                IsChecked="{Binding EnableInjector}" />
                                             <CheckBox
                                                 Visibility="Collapsed"
                                                 DockPanel.Dock="Top"

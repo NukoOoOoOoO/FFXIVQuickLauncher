@@ -1572,6 +1572,9 @@ namespace XIVLauncher.Windows.ViewModel
             set
             {
                 this._enableInjector = value;
+                App.Settings.EnableInjector = value;
+                IsLoadingDialogOpen = value;
+                if (value) LoadingDialogMessage = "正在使用自动注入模式";
                 OnPropertyChanged(nameof(EnableInjector));
             }
         }
