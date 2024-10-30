@@ -228,8 +228,7 @@ namespace XIVLauncher.Windows
                     PluginDirectory = Path.Combine(Paths.RoamingPath, "installedPlugins"),
                     Language = ClientLanguage.ChineseSimplified,
                     DelayInitializeMs = (int)App.Settings.DalamudInjectionDelayMs,
-                    GameVersion = Repository.Ffxiv.GetVer(App.Settings.GamePath),
-                    TroubleshootingPackData = Troubleshooting.GetTroubleshootingJson()
+                    GameVersion = Repository.Ffxiv.GetVer(App.Settings.GamePath)
                 };
 
                 Task.Run(() =>
