@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
 
@@ -25,6 +26,7 @@ public class HttpClientDownloadWithProgress : IDisposable
     public async Task Download(TimeSpan? timeout = null)
     {
         timeout ??= TimeSpan.FromDays(1);
+        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
         this.httpClient = new HttpClient { Timeout = timeout.Value };
         this.httpClient.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36 Edg/130.0.0.0");
         //this.httpClient.DefaultRequestHeaders.Add("accept-encoding", "gzip, deflate, br");
