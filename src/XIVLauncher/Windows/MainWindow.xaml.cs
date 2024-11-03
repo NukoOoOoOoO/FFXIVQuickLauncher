@@ -264,11 +264,7 @@ namespace XIVLauncher.Windows
                             {
                                 foreach (var pid in newPidList.Except(oldPidList))
                                 {
-                                    if (Process.GetProcessById(pid).ProcessName != "ffxiv_dx11")
-                                    {
-                                        Log.Information("{pid} is not dx11", pid);
-                                        continue;
-                                    }
+                                    Log.Information($"Detected new game pid: {pid}");
 
                                     if (first)
                                     {
@@ -283,6 +279,7 @@ namespace XIVLauncher.Windows
                                         if (result == MessageBoxResult.No) continue;
                                     }
 
+                                    Log.Information("Start to inject game, pid = {pid}", pid);
                                     WindowsDalamudRunner.Inject(new FileInfo(Path.Combine(workingDirectory!, "Dalamud.Injector.exe")),
                                                                 pid, new Dictionary<string, string>(), DalamudLoadMethod.DllInject, startInfo);
                                 }
