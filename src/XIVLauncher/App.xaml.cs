@@ -14,6 +14,7 @@ using Config.Net;
 using Newtonsoft.Json;
 using Serilog;
 using Serilog.Events;
+using Velopack;
 using XIVLauncher.Common;
 using XIVLauncher.Common.Dalamud;
 using XIVLauncher.Common.Game;
@@ -419,6 +420,7 @@ namespace XIVLauncher
                 Log.Error(ex, "Could not set up Steam");
             }
 
+            VelopackApp.Build().Run();
 #if !XL_NOAUTOUPDATE
             if (!EnvironmentSettings.IsDisableUpdates)
             {

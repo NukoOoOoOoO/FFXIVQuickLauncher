@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
@@ -9,12 +9,11 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Input;
 using CheapLoc;
 using Newtonsoft.Json;
 using Serilog;
-using Squirrel;
-using XIVLauncher.Accounts;
+using Velopack;
+using Velopack.Sources;
 using XIVLauncher.Common;
 using XIVLauncher.Common.Util;
 using XIVLauncher.Windows;
@@ -26,6 +25,7 @@ namespace XIVLauncher
     internal class Updates
     {
         public event Action<bool>? OnUpdateCheckFinished;
+        private const string UPDATE_URL = "https://aonyx.ffxiv.wang/Proxy/Update/Release";
 
 #if DEV_SERVER
         private const string LEASE_META_URL = "http://localhost:5025/Launcher/GetLease";
@@ -84,44 +84,44 @@ namespace XIVLauncher
 
         private const string FAKE_URL_PREFIX = "https://example.com/";
 
-        private class FakeSquirrelFileDownloader : IFileDownloader
-        {
-            private readonly Lease lease;
-            private readonly HttpClient client = new();
-
-            public FakeSquirrelFileDownloader(Lease lease, bool prerelease)
-            {
-                this.lease = lease;
-                client.DefaultRequestHeaders.AddWithoutValidation("X-XL-Track", prerelease ? TRACK_PRERELEASE : TRACK_RELEASE);
-            }
-
-            public async Task DownloadFile(string url, string targetFile, Action<int> progress)
-            {
-                Log.Verbose("FakeSquirrel: DownloadFile from {Url} to {Target}", url, targetFile);
-                var fileNeeded = url.Substring(FAKE_URL_PREFIX.Length);
-
-                using var response = await client.GetAsync($"{LEASE_FILE_URL}/{fileNeeded}", HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
-                response.EnsureSuccessStatusCode();
-                using var contentStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-
-                using Stream fileStream = File.Open(targetFile, FileMode.Create);
-                await contentStream.CopyToAsync(fileStream).ConfigureAwait(false);
-                fileStream.Close();
-
-                Log.Verbose("FakeSquirrel: OK, downloaded {NumBytes}b for {File}", response.Content.Headers.ContentLength, fileNeeded);
-            }
-
-            public Task<byte[]> DownloadUrl(string url)
-            {
-                Log.Verbose("FakeSquirrel: DownloadUrl from {Url}", url);
-                var fileNeeded = url.Substring(FAKE_URL_PREFIX.Length);
-
-                if (fileNeeded.StartsWith("RELEASES", StringComparison.Ordinal))
-                    return Task.FromResult(Encoding.UTF8.GetBytes(lease.ReleasesList));
-
-                throw new ArgumentException($"DownloadUrl called for unknown file: {url}");
-            }
-        }
+        // private class FakeSquirrelFileDownloader : IFileDownloader
+        // {
+        //     private readonly Lease lease;
+        //     private readonly HttpClient client = new();
+        //
+        //     public FakeSquirrelFileDownloader(Lease lease, bool prerelease)
+        //     {
+        //         this.lease = lease;
+        //         client.DefaultRequestHeaders.AddWithoutValidation("X-XL-Track", prerelease ? TRACK_PRERELEASE : TRACK_RELEASE);
+        //     }
+        //
+        //     public async Task DownloadFile(string url, string targetFile, Action<int> progress)
+        //     {
+        //         Log.Verbose("FakeSquirrel: DownloadFile from {Url} to {Target}", url, targetFile);
+        //         var fileNeeded = url.Substring(FAKE_URL_PREFIX.Length);
+        //
+        //         using var response = await client.GetAsync($"{LEASE_FILE_URL}/{fileNeeded}", HttpCompletionOption.ResponseHeadersRead).ConfigureAwait(false);
+        //         response.EnsureSuccessStatusCode();
+        //         using var contentStream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        //
+        //         using Stream fileStream = File.Open(targetFile, FileMode.Create);
+        //         await contentStream.CopyToAsync(fileStream).ConfigureAwait(false);
+        //         fileStream.Close();
+        //
+        //         Log.Verbose("FakeSquirrel: OK, downloaded {NumBytes}b for {File}", response.Content.Headers.ContentLength, fileNeeded);
+        //     }
+        //
+        //     public Task<byte[]> DownloadUrl(string url)
+        //     {
+        //         Log.Verbose("FakeSquirrel: DownloadUrl from {Url}", url);
+        //         var fileNeeded = url.Substring(FAKE_URL_PREFIX.Length);
+        //
+        //         if (fileNeeded.StartsWith("RELEASES", StringComparison.Ordinal))
+        //             return Task.FromResult(Encoding.UTF8.GetBytes(lease.ReleasesList));
+        //
+        //         throw new ArgumentException($"DownloadUrl called for unknown file: {url}");
+        //     }
+        // }
 
         public class LeaseAcquisitionException : Exception
         {
@@ -143,41 +143,41 @@ namespace XIVLauncher
             public Lease Lease { get; private set; }
         }
 
-        private static async Task<UpdateResult> LeaseUpdateManager(bool prerelease)
-        {
-            using var client = new HttpClient
-            {
-                DefaultRequestHeaders =
-                {
-                    UserAgent = { new ProductInfoHeaderValue("XIVLauncherCN", AppUtil.GetGitHash()) }
-                }
-            };
-            client.DefaultRequestHeaders.AddWithoutValidation("X-XL-Track", prerelease ? TRACK_PRERELEASE : TRACK_RELEASE);
-            client.DefaultRequestHeaders.AddWithoutValidation("X-XL-LV", "0");
-            client.DefaultRequestHeaders.AddWithoutValidation("X-XL-HaveVersion", AppUtil.GetAssemblyVersion());
-            client.DefaultRequestHeaders.AddWithoutValidation("X-XL-HaveAddon", App.Settings.InGameAddonEnabled ? "yes" : "no");
-            client.DefaultRequestHeaders.AddWithoutValidation("X-XL-FirstStart", App.Settings.VersionUpgradeLevel == 0 ? "yes" : "no");
-            client.DefaultRequestHeaders.AddWithoutValidation("X-XL-HaveWine", EnvironmentSettings.IsWine ? "yes" : "no");
-
-            var response = await client.GetAsync(LEASE_META_URL).ConfigureAwait(false);
-            response.EnsureSuccessStatusCode();
-
-            if (response.Headers.TryGetValues("X-XL-Canary", out var values) &&
-                values.FirstOrDefault() == "yes")
-            {
-                Log.Information("Updates: Received canary track lease!");
-            }
-
-            var leaseData = JsonConvert.DeserializeObject<Lease>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
-
-            if (!leaseData.Success)
-                throw new LeaseAcquisitionException(leaseData.Message!);
-
-            var fakeDownloader = new FakeSquirrelFileDownloader(leaseData, prerelease);
-            var manager = new UpdateManager(FAKE_URL_PREFIX, "XIVLauncherCN", null, fakeDownloader);
-
-            return new UpdateResult(manager, leaseData);
-        }
+        // private static async Task<UpdateResult> LeaseUpdateManager(bool prerelease)
+        // {
+        //     using var client = new HttpClient
+        //     {
+        //         DefaultRequestHeaders =
+        //         {
+        //             UserAgent = { new ProductInfoHeaderValue("XIVLauncherCN", AppUtil.GetGitHash()) }
+        //         }
+        //     };
+        //     client.DefaultRequestHeaders.AddWithoutValidation("X-XL-Track", prerelease ? TRACK_PRERELEASE : TRACK_RELEASE);
+        //     client.DefaultRequestHeaders.AddWithoutValidation("X-XL-LV", "0");
+        //     client.DefaultRequestHeaders.AddWithoutValidation("X-XL-HaveVersion", AppUtil.GetAssemblyVersion());
+        //     client.DefaultRequestHeaders.AddWithoutValidation("X-XL-HaveAddon", App.Settings.InGameAddonEnabled ? "yes" : "no");
+        //     client.DefaultRequestHeaders.AddWithoutValidation("X-XL-FirstStart", App.Settings.VersionUpgradeLevel == 0 ? "yes" : "no");
+        //     client.DefaultRequestHeaders.AddWithoutValidation("X-XL-HaveWine", EnvironmentSettings.IsWine ? "yes" : "no");
+        //
+        //     var response = await client.GetAsync(LEASE_META_URL).ConfigureAwait(false);
+        //     response.EnsureSuccessStatusCode();
+        //
+        //     if (response.Headers.TryGetValues("X-XL-Canary", out var values) &&
+        //         values.FirstOrDefault() == "yes")
+        //     {
+        //         Log.Information("Updates: Received canary track lease!");
+        //     }
+        //
+        //     var leaseData = JsonConvert.DeserializeObject<Lease>(await response.Content.ReadAsStringAsync().ConfigureAwait(false));
+        //
+        //     if (!leaseData.Success)
+        //         throw new LeaseAcquisitionException(leaseData.Message!);
+        //
+        //     var fakeDownloader = new FakeSquirrelFileDownloader(leaseData, prerelease);
+        //     var manager = new UpdateManager(FAKE_URL_PREFIX, "XIVLauncherCN", null, fakeDownloader);
+        //
+        //     return new UpdateResult(manager, leaseData);
+        // }
 
         public static async Task<ErrorNewsData?> GetErrorNews()
         {
@@ -208,92 +208,35 @@ namespace XIVLauncher
             return UpdateLease != null && UpdateLease.Flags.HasFlag(flag);
         }
 
-        public async Task Run(bool downloadPrerelease, ChangelogWindow changelogWindow)
+        public async Task Run(bool downloadPrerelease, ChangelogWindow? changelogWindow)
         {
+#if RELEASENOUPDATE
+            OnUpdateCheckFinished?.Invoke(true);
+            return;
+#endif
             // GitHub requires TLS 1.2, we need to hardcode this for Windows 7
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12;
 
             try
             {
-                var updateResult = await LeaseUpdateManager(downloadPrerelease).ConfigureAwait(false);
-                UpdateLease = updateResult.Lease;
+                var mgr = new UpdateManager(UPDATE_URL);
+#if DEBUG
+                mgr = new UpdateManager(new GithubSource(repoUrl: "https://github.com/ottercorp/FFXIVQuickLauncher", null, false));
+#endif
 
-                // Log feature flags
-                try
-                {
-                    var flags = string.Join(", ", Enum.GetValues(typeof(LeaseFeatureFlags))
-                                                      .Cast<LeaseFeatureFlags>()
-                                                      .Where(f => UpdateLease.Flags.HasFlag(f))
-                                                      .Select(f => f.ToString()));
-
-                    Log.Information("Feature flags: {Flags}", flags);
-                }
-                catch (Exception ex)
-                {
-                    Log.Error(ex, "Could not log feature flags");
-                }
-
-                using var updateManager = updateResult.Manager;
-
-                // TODO: is this allowed?
-                SquirrelAwareApp.HandleEvents(
-                    onInitialInstall: v => updateManager.CreateShortcutForThisExe(),
-                    onAppUpdate: v => updateManager.CreateShortcutForThisExe(),
-                    onAppUninstall: v =>
-                    {
-                        updateManager.RemoveShortcutForThisExe();
-
-                        if (CustomMessageBox.Show(Loc.Localize("UninstallQuestion", "Sorry to see you go!\nDo you want to delete all of your saved settings, plugins and passwords?"), "XIVLauncher",
-                                MessageBoxButton.YesNo, MessageBoxImage.Question, false, false)
-                            == MessageBoxResult.Yes)
-                        {
-                            try
-                            {
-                                var mgr = new AccountManager(App.Settings);
-
-                                foreach (var account in mgr.Accounts.ToArray())
-                                {
-                                    account.Password = null;
-                                    mgr.RemoveAccount(account);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Error(ex, "Uninstall: Could not delete passwords");
-                            }
-
-                            try
-                            {
-                                // Let's just give this a shot, probably not going to work 100% but
-                                // there's not super much we can do about it right now
-                                Directory.Delete(Paths.RoamingPath, true);
-                            }
-                            catch (Exception ex)
-                            {
-                                Log.Error(ex, "Uninstall: Could not delete roaming directory");
-                            }
-                        }
-                    });
-
-                await updateManager.CheckForUpdate().ConfigureAwait(false);
-                ReleaseEntry? newRelease = await updateManager.UpdateApp().ConfigureAwait(false);
+                // check for new version
+                var newRelease = await mgr.CheckForUpdatesAsync();
 
                 if (newRelease != null)
                 {
-                    try
-                    {
-                        // Reset UID cache after updating
-                        App.UniqueIdCache.Reset();
-                    }
-                    catch
-                    {
-                        // ignored
-                    }
+                    var changelog = newRelease.TargetFullRelease.NotesMarkdown;
+                    // download new version
+                    await mgr.DownloadUpdatesAsync(newRelease);
 
                     if (changelogWindow == null)
                     {
                         Log.Error("changelogWindow was null");
-                        UpdateManager.RestartApp();
+                        mgr.ApplyUpdatesAndRestart(newRelease);
                         return;
                     }
 
@@ -301,11 +244,13 @@ namespace XIVLauncher
                     {
                         changelogWindow.Dispatcher.Invoke(() =>
                         {
-                            changelogWindow.UpdateVersion(newRelease.Version.ToString());
+                            changelogWindow.UpdateVersion(newRelease.TargetFullRelease.Version.ToString());
+                            changelogWindow.ChangeLogText.Text = changelog;
                             changelogWindow.Show();
                             changelogWindow.Closed += (_, _) =>
                             {
-                                UpdateManager.RestartApp();
+                                // install new version and restart app
+                                mgr.ApplyUpdatesAndRestart(newRelease);
                             };
                         });
 
@@ -314,13 +259,123 @@ namespace XIVLauncher
                     catch (Exception ex)
                     {
                         Log.Error(ex, "Could not show changelog window");
-                        UpdateManager.RestartApp();
                     }
                 }
-#if !XL_NOAUTOUPDATE
                 else
-                    OnUpdateCheckFinished?.Invoke(true);
-#endif
+                {
+                    this.OnUpdateCheckFinished?.Invoke(true);
+                }
+
+                #region OldSquirrel
+
+                //                 var updateResult = await LeaseUpdateManager(downloadPrerelease).ConfigureAwait(false);
+                //                 UpdateLease = updateResult.Lease;
+                //
+                //                 // Log feature flags
+                //                 try
+                //                 {
+                //                     var flags = string.Join(", ", Enum.GetValues(typeof(LeaseFeatureFlags))
+                //                                                       .Cast<LeaseFeatureFlags>()
+                //                                                       .Where(f => UpdateLease.Flags.HasFlag(f))
+                //                                                       .Select(f => f.ToString()));
+                //
+                //                     Log.Information("Feature flags: {Flags}", flags);
+                //                 }
+                //                 catch (Exception ex)
+                //                 {
+                //                     Log.Error(ex, "Could not log feature flags");
+                //                 }
+                //
+                //                 using var updateManager = updateResult.Manager;
+                //
+                //                 // TODO: is this allowed?
+                //                 SquirrelAwareApp.HandleEvents(
+                //                     onInitialInstall: v => updateManager.CreateShortcutForThisExe(),
+                //                     onAppUpdate: v => updateManager.CreateShortcutForThisExe(),
+                //                     onAppUninstall: v =>
+                //                     {
+                //                         updateManager.RemoveShortcutForThisExe();
+                //
+                //                         if (CustomMessageBox.Show(Loc.Localize("UninstallQuestion", "Sorry to see you go!\nDo you want to delete all of your saved settings, plugins and passwords?"), "XIVLauncher",
+                //                                 MessageBoxButton.YesNo, MessageBoxImage.Question, false, false)
+                //                             == MessageBoxResult.Yes)
+                //                         {
+                //                             try
+                //                             {
+                //                                 var mgr = new AccountManager(App.Settings);
+                //
+                //                                 foreach (var account in mgr.Accounts.ToArray())
+                //                                 {
+                //                                     account.Password = null;
+                //                                     mgr.RemoveAccount(account);
+                //                                 }
+                //                             }
+                //                             catch (Exception ex)
+                //                             {
+                //                                 Log.Error(ex, "Uninstall: Could not delete passwords");
+                //                             }
+                //
+                //                             try
+                //                             {
+                //                                 // Let's just give this a shot, probably not going to work 100% but
+                //                                 // there's not super much we can do about it right now
+                //                                 Directory.Delete(Paths.RoamingPath, true);
+                //                             }
+                //                             catch (Exception ex)
+                //                             {
+                //                                 Log.Error(ex, "Uninstall: Could not delete roaming directory");
+                //                             }
+                //                         }
+                //                     });
+                //
+                //                 await updateManager.CheckForUpdate().ConfigureAwait(false);
+                //                 ReleaseEntry? newRelease = await updateManager.UpdateApp().ConfigureAwait(false);
+                //
+                //                 if (newRelease != null)
+                //                 {
+                //                     try
+                //                     {
+                //                         // Reset UID cache after updating
+                //                         App.UniqueIdCache.Reset();
+                //                     }
+                //                     catch
+                //                     {
+                //                         // ignored
+                //                     }
+                //
+                //                     if (changelogWindow == null)
+                //                     {
+                //                         Log.Error("changelogWindow was null");
+                //                         UpdateManager.RestartApp();
+                //                         return;
+                //                     }
+                //
+                //                     try
+                //                     {
+                //                         changelogWindow.Dispatcher.Invoke(() =>
+                //                         {
+                //                             changelogWindow.UpdateVersion(newRelease.Version.ToString());
+                //                             changelogWindow.Show();
+                //                             changelogWindow.Closed += (_, _) =>
+                //                             {
+                //                                 UpdateManager.RestartApp();
+                //                             };
+                //                         });
+                //
+                //                         OnUpdateCheckFinished?.Invoke(false);
+                //                     }
+                //                     catch (Exception ex)
+                //                     {
+                //                         Log.Error(ex, "Could not show changelog window");
+                //                         UpdateManager.RestartApp();
+                //                     }
+                //                 }
+                // #if !XL_NOAUTOUPDATE
+                //                 else
+                //                     OnUpdateCheckFinished?.Invoke(true);
+                // #endif
+
+                #endregion
             }
             catch (Exception ex)
             {

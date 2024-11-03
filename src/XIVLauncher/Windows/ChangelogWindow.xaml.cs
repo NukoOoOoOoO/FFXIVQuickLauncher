@@ -80,15 +80,15 @@ namespace XIVLauncher.Windows
         {
             SystemSounds.Asterisk.Play();
             base.Show();
-
-            LoadChangelog();
+            //
+            // LoadChangelog();
         }
 
         public new void ShowDialog()
         {
-            base.ShowDialog();
-
-            LoadChangelog();
+            // base.ShowDialog();
+            //
+            // LoadChangelog();
         }
 
         private void LoadChangelog()
