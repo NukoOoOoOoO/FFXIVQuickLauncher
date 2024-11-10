@@ -11,6 +11,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using Castle.Core.Internal;
 using CheapLoc;
 using Serilog;
 using XIVLauncher.Accounts;
@@ -406,6 +407,7 @@ namespace XIVLauncher.Windows
             Model.EnableInjector = App.Settings.EnableInjector;
 
             _accountManager = new AccountManager(App.Settings);
+            if (!this._accountManager.CurrentAccount.Password.IsNullOrEmpty()) ShowPassword_OnClick(null, null);
 
             var savedAccount = _accountManager.CurrentAccount;
 
@@ -798,6 +800,7 @@ namespace XIVLauncher.Windows
             else
             {
                 LoginPassword.Visibility = Visibility.Collapsed;
+                LoginPassword.Password = string.Empty;
                 LoginPassword.IsEnabled = false;
             }
         }

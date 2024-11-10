@@ -217,15 +217,9 @@ namespace XIVLauncher.Common.Game
             }
         }
 
-        enum SdoClient
-        {
-            Daoyu,
-            Launcher
-        }
-
         private async Task GetGuid()
         {
-            var result = await GetJsonAsSdoClient("getGuid.json", new List<string>() { "generateDynamicKey=1" }, SdoClient.Launcher);
+            var result = await this.GetJsonAsSdoClient("getGuid.json", new List<string>() { "generateDynamicKey=1" });
 
             if (result.ErrorType != 0)
                 throw new OauthLoginException(result.ToString());
@@ -238,7 +232,7 @@ namespace XIVLauncher.Common.Game
 
         private async Task UpdateAutoLoginSessionKey()
         {
-            var result = await GetJsonAsSdoClient("autoLogin.json", new List<string>() { $"autoLoginSessionKey={autoLoginSessionKey}", $"guid={guid}" }, SdoClient.Launcher);
+            var result = await this.GetJsonAsSdoClient("autoLogin.json", new List<string>() { $"autoLoginSessionKey={autoLoginSessionKey}", $"guid={this.guid}" });
 
             if (result.ReturnCode != 0 || result.ErrorType != 0) result.Data.AutoLoginSessionKey = null;
             if (result.ReturnCode == -10386010)
@@ -281,7 +275,7 @@ namespace XIVLauncher.Common.Game
 
             if (string.IsNullOrEmpty(autoLoginSessionKey)) return;
             //快速登录
-            var result = await GetJsonAsSdoClient("fastLogin.json", new List<string>() { $"tgt={tgt}", $"guid={guid}" }, SdoClient.Launcher);
+            var result = await this.GetJsonAsSdoClient("fastLogin.json", new List<string>() { $"tgt={this.tgt}", $"guid={this.guid}" });
 
             if (result.ReturnCode != 0 || result.ErrorType != 0)
             {
@@ -299,13 +293,13 @@ namespace XIVLauncher.Common.Game
         private async Task CancelPushMessageLogin(string pushMsgSessionKey, string guid)
         {
             // /authen/cancelPushMessageLogin.json
-            await GetJsonAsSdoClient("cancelPushMessageLogin.json", new List<string>() { $"pushMsgSessionKey={pushMsgSessionKey}", $"guid={guid}" }, SdoClient.Launcher);
+            await this.GetJsonAsSdoClient("cancelPushMessageLogin.json", new List<string>() { $"pushMsgSessionKey={pushMsgSessionKey}", $"guid={guid}" });
         }
 
         private async Task<(int? returnCode, string failReason, string? pushMsgSerialNum, string? pushMsgSessionKey)> SendPushMessage()
         {
             // /authen/sendPushMessage.json
-            var result = await GetJsonAsSdoClient("sendPushMessage.json", new List<string>() { $"inputUserId={userName}" }, SdoClient.Launcher);
+            var result = await this.GetJsonAsSdoClient("sendPushMessage.json", new List<string>() { $"inputUserId={userName}" });
 
             // ErrorType ReturnCode NextAction FailReason
             // 0         -14001710  0          "请确保已安装叨鱼，并保持联网"
@@ -329,9 +323,9 @@ namespace XIVLauncher.Common.Game
             while (!cancellation.IsCancellationRequested)
             {
                 // /authen/pushMessageLogin.json
-                var result = await GetJsonAsSdoClient("pushMessageLogin.json", autoLogin
-                    ? new List<string>() { $"pushMsgSessionKey={pushMsgSessionKey}", $"guid={guid}", "autoLoginFlag=1", $"autoLoginKeepTime={autoLoginKeepTime}" }
-                    : new List<string>() { $"pushMsgSessionKey={pushMsgSessionKey}", $"guid={guid}" }, SdoClient.Launcher);
+                var result = await this.GetJsonAsSdoClient("pushMessageLogin.json", autoLogin
+                                                                                        ? new List<string>() { $"pushMsgSessionKey={pushMsgSessionKey}", $"guid={guid}", "autoLoginFlag=1", $"autoLoginKeepTime={autoLoginKeepTime}" }
+                                                                                        : new List<string>() { $"pushMsgSessionKey={pushMsgSessionKey}", $"guid={guid}" });
 
                 if (result.ReturnCode == 0 && result.Data.NextAction == 0)
                 {
@@ -364,7 +358,7 @@ namespace XIVLauncher.Common.Game
         private async Task<string> GetQRCode()
         {
             // /authen/getCodeKey.json
-            var request = GetSdoHttpRequestMessage(HttpMethod.Get, "getCodeKey.json", new List<string>() { $"maxsize=97", $"authenSource=1" }, SdoClient.Launcher);
+            var request = this.GetSdoHttpRequestMessage(HttpMethod.Get, "getCodeKey.json", new List<string>() { $"maxsize=97", $"authenSource=1" });
             var response = await this.client.SendAsync(request);
             var cookies = response.Headers.SingleOrDefault(header => header.Key == "Set-Cookie").Value;
             var codeKey = cookies.FirstOrDefault(x => x.StartsWith("CODEKEY="))?.Split(';')[0];
@@ -398,8 +392,8 @@ namespace XIVLauncher.Common.Game
         {
             while (!cancellation.IsCancellationRequested)
             {
-                var result = await GetJsonAsSdoClient("codeKeyLogin.json",
-                    new List<string>() { $"codeKey={codeKey}", $"guid={guid}", $"autoLoginFlag=1", $"autoLoginKeepTime={autoLoginKeepTime}", $"maxsize=97" }, SdoClient.Launcher);
+                var result = await this.GetJsonAsSdoClient("codeKeyLogin.json",
+                                                           new List<string>() { $"codeKey={codeKey}", $"guid={this.guid}", $"autoLoginFlag=1", $"autoLoginKeepTime={autoLoginKeepTime}", $"maxsize=97" });
 
                 if (result.ReturnCode == 0 && result.Data.NextAction == 0)
                 {
@@ -431,7 +425,7 @@ namespace XIVLauncher.Common.Game
         private async Task<string> SsoLogin(string tgt, string guid)
         {
             // /authen/ssoLogin.json 抓包的ticket=SID
-            var result = await GetJsonAsSdoClient("ssoLogin.json", new List<string>() { $"tgt={tgt}", $"guid={guid}" }, SdoClient.Launcher, tgt);
+            var result = await this.GetJsonAsSdoClient("ssoLogin.json", new List<string>() { $"tgt={tgt}", $"guid={guid}" }, tgt);
 
             if (result.ReturnCode != 0 || result.ErrorType != 0)
                 throw new OauthLoginException(result.ToString());
@@ -444,7 +438,7 @@ namespace XIVLauncher.Common.Game
         private async Task<SdoLoginResult> GetPromotionInfo()
         {
             // /authen/getPromotion.json 不知道为什么要有,但就是有
-            return await GetJsonAsSdoClient("getPromotionInfo.json", new List<string>() { $"tgt={tgt}" }, SdoClient.Launcher, tgt);
+            return await this.GetJsonAsSdoClient("getPromotionInfo.json", new List<string>() { $"tgt={this.tgt}" }, this.tgt);
         }
 
         #endregion
@@ -453,19 +447,25 @@ namespace XIVLauncher.Common.Game
 
         private async Task StaticLogin()
         {
-            var macAddress = SdoUtils.GetMac();
+            var macAddress = SdoUtils.GetMacAddress();
             //密码登录
-            var result = await GetJsonAsSdoClient("staticLogin.json", new List<string>()
+            var result = await this.GetJsonAsSdoClient("staticLogin.json", new List<string>()
             {
-                "checkCodeFlag=1", "encryptFlag=0", $"inputUserId={userName}", $"password={password}", $"mac={macAddress}", $"guid={guid}",
+                "checkCodeFlag=1", "encryptFlag=0", $"inputUserId={userName}", $"password={password}", $"mac={macAddress}", $"guid={this.guid}",
                 "inputUserType=0&accountDomain=1&autoLoginFlag=0&autoLoginKeepTime=0&supportPic=2"
-            }, SdoClient.Launcher);
+            });
 
             if (result.ReturnCode != 0 || result.ErrorType != 0)
             {
                 //throw new OauthLoginException(result.Data.FailReason);
                 logEvent?.Invoke(SdoLoginState.LoginFail, result.Data.FailReason);
                 password = string.Empty;
+                return;
+            }
+
+            if (string.IsNullOrEmpty(result.Data.Tgt))
+            {
+                throw new OauthLoginException($"本次登录需要输入验证码,目前暂不支持,请使用其他登录方式登录。");
             }
 
             Log.Information($"staticLogin.json:{result.Data.SndaId}:{result.Data.Tgt}");
@@ -480,14 +480,14 @@ namespace XIVLauncher.Common.Game
 
         private async Task ThirdPartyLogin(string thridUserId, string token, bool autoLogin = false)
         {
-            Log.Error($"TOKEN:{token}");
+            //Log.Error($"TOKEN:{token}");
             //第三方登录
-            var result = await GetJsonAsSdoClient("thirdPartyLogin",
-                new List<string>()
-                {
-                    "companyid=310", "islimited=0", $"thridUserId={thridUserId}", $"token={token}",
-                    autoLogin ? $"autoLoginFlag=1&autoLoginKeepTime={autoLoginKeepTime}" : "autoLoginFlag=0&autoLoginKeepTime=0"
-                }, SdoClient.Launcher);
+            var result = await this.GetJsonAsSdoClient("thirdPartyLogin",
+                                                       new List<string>()
+                                                       {
+                                                           "companyid=310", "islimited=0", $"thridUserId={thridUserId}", $"token={token}",
+                                                           autoLogin ? $"autoLoginFlag=1&autoLoginKeepTime={autoLoginKeepTime}" : "autoLoginFlag=0&autoLoginKeepTime=0"
+                                                       });
 
             if (result.ReturnCode != 0 || result.ErrorType != 0)
             {
@@ -507,7 +507,7 @@ namespace XIVLauncher.Common.Game
 
         private async Task<string> GetAccountGroup()
         {
-            var result = await GetJsonAsSdoClient("getAccountGroup", new List<string>() { "serviceUrl=http%3A%2F%2Fwww.sdo.com", $"tgt={tgt}" }, SdoClient.Launcher);
+            var result = await this.GetJsonAsSdoClient("getAccountGroup", new List<string>() { "serviceUrl=http%3A%2F%2Fwww.sdo.com", $"tgt={this.tgt}" });
 
             if (result.ReturnCode != 0 || result.ErrorType != 0)
             {
@@ -527,8 +527,8 @@ namespace XIVLauncher.Common.Game
 
         private async Task AccountGroupLogin()
         {
-            var result = await GetJsonAsSdoClient("accountGroupLogin",
-                new List<string>() { "serviceUrl=http%3A%2F%2Fwww.sdo.com", $"tgt={tgt}", $"sndaId={sndaId}", "autoLoginFlag=1", $"autoLoginKeepTime={autoLoginKeepTime}" }, SdoClient.Launcher);
+            var result = await this.GetJsonAsSdoClient("accountGroupLogin",
+                                                       new List<string>() { "serviceUrl=http%3A%2F%2Fwww.sdo.com", $"tgt={this.tgt}", $"sndaId={this.sndaId}", "autoLoginFlag=1", $"autoLoginKeepTime={autoLoginKeepTime}" });
             Log.Information($"accountGroupLogin:AutoLoginMaxAge:{result.Data.AutoLoginMaxAge}");
 
             if (result.ReturnCode == 0 && result.Data.NextAction == 0)
@@ -601,16 +601,14 @@ namespace XIVLauncher.Common.Game
             }
         }
 
-        private HttpRequestMessage GetSdoHttpRequestMessage(HttpMethod method, string endPoint, List<string> para, SdoClient app, string tgt = null)
+        private HttpRequestMessage GetSdoHttpRequestMessage(HttpMethod method, string endPoint, List<string> para, string tgt = null)
         {
-            var appId = app == SdoClient.Launcher ? 100001900 : 991002627;
-            var productVersion = app == SdoClient.Launcher ? "2%2e0%2e1%2e4" : "1%2e1%2e8%2e1";
-            AreaId = app == SdoClient.Launcher ? "1" : "7";
+            var mac = SdoUtils.GetMac();
             var commonParas = new List<string>();
             commonParas.Add("authenSource=1");
-            commonParas.Add($"appId={appId}");
-            commonParas.Add($"areaId={AreaId}");
-            commonParas.Add($"appIdSite={appId}");
+            commonParas.Add($"appId=100001900");
+            commonParas.Add($"areaId=1");
+            commonParas.Add($"appIdSite=100001900");
             commonParas.Add("locale=zh_CN");
             commonParas.Add("productId=4");
             commonParas.Add("frameType=1");
@@ -619,7 +617,8 @@ namespace XIVLauncher.Common.Game
             commonParas.Add("customSecurityLevel=2");
             commonParas.Add($"deviceId={DeviceId}");
             commonParas.Add($"thirdLoginExtern=0");
-            commonParas.Add($"productVersion={productVersion}");
+            commonParas.Add($"productVersion=2%2e0%2e1%2e13");
+            commonParas.Add($"macId={mac}");
             commonParas.Add($"tag=0");
             para.AddRange(commonParas);
             var request = new HttpRequestMessage(method, $"https://cas.sdo.com/authen/{endPoint}?{string.Join("&", para)}");
@@ -642,9 +641,9 @@ namespace XIVLauncher.Common.Game
             return request;
         }
 
-        private async Task<SdoLoginResult> GetJsonAsSdoClient(string endPoint, List<string> para, SdoClient app = SdoClient.Launcher, string tgt = null)
+        private async Task<SdoLoginResult> GetJsonAsSdoClient(string endPoint, List<string> para, string tgt = null)
         {
-            var request = GetSdoHttpRequestMessage(HttpMethod.Get, endPoint, para, app);
+            var request = this.GetSdoHttpRequestMessage(HttpMethod.Get, endPoint, para, tgt);
             ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls11;
             var response = await this.client.SendAsync(request);
             var reply = await response.Content.ReadAsStringAsync();
@@ -715,8 +714,8 @@ namespace XIVLauncher.Common.Game
             var workingDir = Path.Combine(gamePath.FullName, "game");
 
             var arguments = encryptArguments
-                ? argumentBuilder.BuildEncrypted()
-                : argumentBuilder.Build();
+                                ? argumentBuilder.BuildEncrypted()
+                                : argumentBuilder.Build();
 
             return runner.Start(exePath, workingDir, arguments, environment, dpiAwareness);
         }

@@ -72,7 +72,7 @@ namespace XIVLauncher.Common
             return result;
         }
 
-        private static string GetMacAddress()
+        public static string GetMacAddress()
         {
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
