@@ -713,9 +713,7 @@ namespace XIVLauncher.Common.Game
 
             var workingDir = Path.Combine(gamePath.FullName, "game");
 
-            var arguments = encryptArguments
-                                ? argumentBuilder.BuildEncrypted()
-                                : argumentBuilder.Build();
+            var arguments = argumentBuilder.BuildEncrypted();
 
             return runner.Start(exePath, workingDir, arguments, environment, dpiAwareness);
         }

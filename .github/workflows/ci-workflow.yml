@@ -30,7 +30,7 @@ jobs:
           ($env:REPO_NAME) >> VERSION
           ($env:BRANCH) >> VERSION
           ($env:COMMIT) >> VERSION
-      - name: Build DotNet4 for Release
+      - name: Build Release
         run: |
           cd "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\"
            .\MSBuild.exe $Env:GITHUB_WORKSPACE\src\XIVLauncher.sln /t:Build /p:Configuration=Release
@@ -45,41 +45,32 @@ jobs:
             src/bin/XIVLauncher.*.dll
             src/bin/XIVLauncher.*.exe
             src/bin/hashes.json
-      - name: Build Velopack Release
-        id: build-velopack
+      - name: Velopack Upload
+        id: velopack
+        env:
+          S3AccessKeyID: ${{ secrets.S3AccessKeyID }}
+          S3AccessKeySecret: ${{ secrets.S3AccessKeySecret }}
         run: |
-          cd src\
-          mkdir Releases
-          $releases = Invoke-WebRequest -Uri 'https://api.github.com/repos/ottercorp/FFXIVQuickLauncher/releases'
-          $current = ConvertFrom-Json -InputObject $releases.Content | Select-Object -First 1
-          $delta_file = $current.assets | Where-Object -Property name -Value "*delta.nupkg" -Like
-          try
-          {
-            Invoke-WebRequest -Uri $delta_file.browser_download_url -OutFile ".\Releases\$($delta_file.name)"
-          }
-          catch
-          {
-          }
-          $full_file = $current.assets | Where-Object -Property name -Value "*full.nupkg" -Like
-          Invoke-WebRequest -Uri $full_file.browser_download_url -OutFile ".\Releases\$($full_file.name)"
           $refver = $env:GITHUB_REF -replace '.*/'
           echo "::set-output name=version::$refver"
+
+          cd src\
+          mkdir Releases
           dotnet tool install -g vpk
-          vpk pack -u XIVLauncherCN -v $refver -p .\bin -o .\Releases -e XIVLauncherCN.exe --releaseNotes .\XIVLauncher\Resources\CHANGELOG.txt --framework net8.0-x64-desktop
+          vpk download s3 --bucket MyApp --region us-west-1 --keyId $env:S3AccessKeyID --secret $env:S3AccessKeySecret
+          vpk pack -u XIVLauncherCN -v $refver -p .\bin -o .\Releases -e XIVLauncherCN.exe --packAuthors OtterCorp --releaseNotes .\XIVLauncher\Resources\CHANGELOG.txt --icon .\XIVLauncher\Resources\dalamud_icon.ico --splashImage .\XIVLauncher\Resources\logo.png --framework net8.0-x64-desktop
+
           Expand-Archive -Path ".\Releases\XIVLauncherCN-win-Portable.zip" -DestinationPath .\Releases\scratch -Force
-          7z a .\Releases\XIVLauncherCN.7z .\Releases\scratch\* -t7z -mx=9
-          Remove-Item -Force ".\Releases\$($full_file.name)"
-          try
-          {
-            Remove-Item -Force ".\Releases\$($delta_file.name)"
+          7z a .\Releases\XIVLauncherCN-win-Portable.7z .\Releases\scratch\* -t7z -mx=9
+
+          $json = Get-Content -Raw .\Releases\assets.win.json | ConvertFrom-Json
+          for ($i = 0; $i -lt $json.Files.Count; $i++) {
+          $json.Files[$i] = $json.Files[$i] -replace 'zip','7z'
           }
-          catch
-          {
-          }
-          Remove-Item -Force .\Releases\assets.win.json
-          Remove-Item -Force .\Releases\XIVLauncherCN-win-Portable.zip
-          Remove-Item -Force -Recurse .\Releases\scratch
-          Rename-Item -Force .\Releases\XIVLauncherCN-win-Setup.exe XIVLauncherCN-Setup.exe
+          $content = $json | ConvertTo-Json
+          set-content -Path .\Releases\assets.win.json -Value $content
+
+          vpk upload s3 --bucket MyApp --region us-west-1 --keyId $env:S3AccessKeyID --secret $env:S3AccessKeySecret
       - name: Attest Setup
         if: ${{ github.repository_owner == 'ottercorp' && github.event_name == 'push' }}
         uses: actions/attest-build-provenance@v1
@@ -87,17 +78,8 @@ jobs:
           subject-path: |
             src/Releases/*.exe
             src/Releases/*.nupkg
-            src/Releases/RELEASES
+            src/Releases/*.json
             src/Releases/*.7z
-      - name: Create Release
-        uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          files: ./src/Releases/**
-          name: Release ${{ steps.build-velopack.outputs.version }}
-          body_path: RELEASE.md
-          prerelease: true
       - name: VirusTotal Scan
         uses: crazy-max/ghaction-virustotal@a3f74cfd584b0658320aec5e94ab6a8d16dca05f
         with:
@@ -133,7 +115,7 @@ jobs:
           ($env:REPO_NAME) >> VERSION
           ($env:BRANCH) >> VERSION
           ($env:COMMIT) >> VERSION
-      - name: Build DotNet4 Master
+      - name: Build
         run: |
           cd "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\"
            .\MSBuild.exe $Env:GITHUB_WORKSPACE\src\XIVLauncher.sln /t:Build /p:Configuration=ReleaseNoUpdate

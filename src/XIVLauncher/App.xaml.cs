@@ -294,10 +294,6 @@ namespace XIVLauncher
             {
                 if (!EnvironmentSettings.IsHardwareRendered)
                     RenderOptions.ProcessRenderMode = RenderMode.SoftwareOnly;
-
-                if (!Directory.Exists(Paths.RoamingPath)) Directory.CreateDirectory(Paths.RoamingPath);
-                Paths.DeleteLink();
-                Paths.CheckPath();
             }
             catch
             {
